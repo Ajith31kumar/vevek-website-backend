@@ -22,6 +22,7 @@ const ResultSchema = new mongoose.Schema({
   name: { type: String, required: true },
   email: { type: String, required: true },
   sex: { type: String, required: true },
+  number: { type: Number, required: true }, // Change 'Number' to 'number'
   age: { type: Number, required: true },
   results: { type: [Number], required: true },
   wrongClickCount: { type: Number, default: 0 },
@@ -32,55 +33,49 @@ const ResultModel = mongoose.model("Result", ResultSchema);
 // Save game data (POST)
 app.post("/save", async (req, res) => {
   try {
-    console.log("Received Data:", req.body); // Debugging Log
+    console.log("🔵 Incoming Request:", req.method, req.url);
+    console.log("📩 Received Data:", req.body);
+
+    if (!req.body.name || !req.body.email || !req.body.age || !req.body.results) {
+      console.log("❌ Missing required fields");
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+
     const newResult = new ResultModel(req.body);
     await newResult.save();
+    
+    console.log("✅ Data Saved Successfully:", newResult);
     res.json({ message: "Data saved successfully!" });
   } catch (error) {
-    console.error("Error saving data:", error);
+    console.error("🚨 Error saving data:", error);
     res.status(500).json({ error: "Error saving data." });
   }
 });
 
-// Fetch all game results (GET)
-app.get("/getResults", async (req, res) => {
+// Fetch leaderboard (GET)
+app.get("/leaderboard", async (req, res) => {
   try {
-    const results = await ResultModel.find().sort({ createdAt: -1 }); // Sort by latest
-    console.log("Fetched Results:", results); // Debugging Log
-    res.json(results);
-  } catch (error) {
-    console.error("Error fetching results:", error);
-    res.status(500).json({ error: "Error fetching results." });
-  }
-});
+    const players = await ResultModel.find({});
+    const leaderboard = players.map((player) => {
+      const bestPoints = Math.min(...player.results); // Lower reaction time is better
+      const averagePoints = player.results.reduce((a, b) => a + b, 0) / player.results.length;
+      return {
+        name: player.name,
+        bestPoints,
+        averagePoints,
+      };
+    }).sort((a, b) => a.bestPoints - b.bestPoints) // Sort by best points
+      .slice(0, 10); // Top 10 players
 
-// Fetch a single user's result by email (GET)
-app.get("/getResult/:email", async (req, res) => {
-  try {
-    const userResult = await ResultModel.findOne({ email: req.params.email });
-    if (!userResult) {
-      return res.status(404).json({ error: "No results found for this email." });
-    }
-    res.json(userResult);
+    res.json(leaderboard);
   } catch (error) {
-    console.error("Error fetching user result:", error);
-    res.status(500).json({ error: "Error fetching user result." });
-  }
-});
-
-// Delete all results (DELETE) - Be careful using this in production!
-app.delete("/deleteAll", async (req, res) => {
-  try {
-    await ResultModel.deleteMany({});
-    res.json({ message: "All results deleted successfully." });
-  } catch (error) {
-    console.error("Error deleting results:", error);
-    res.status(500).json({ error: "Error deleting results." });
+    console.error("Error fetching leaderboard:", error);
+    res.status(500).json({ error: "Error fetching leaderboard." });
   }
 });
 
 // Start the server
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5002;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
