@@ -7,25 +7,35 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Connect to MongoDB
-const MONGO_URI = process.env.MONGO_URI || "mongodb://localhost:27017/reaction_game";
+// MongoDB URI
+const MONGO_URI = process.env.MONGO_URI || "mongodb://localhost:27017/Reaction-Game";
 
+// Connect to MongoDB
 mongoose.connect(MONGO_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
+
 })
-  .then(() => console.log("Connected to MongoDB"))
-  .catch((err) => console.error("MongoDB Connection Error:", err));
+  .then(() => console.log("✅ Connected to MongoDB"))
+  .catch((err) => {
+    console.error("🚨 MongoDB Connection Error:", err.message);
+    process.exit(1); // Exit if MongoDB connection fails
+  });
 
 // Define MongoDB Schema
 const ResultSchema = new mongoose.Schema({
   name: { type: String, required: true },
   email: { type: String, required: true },
   sex: { type: String, required: true },
-  number: { type: Number, required: true }, // Change 'Number' to 'number'
+  number: { type: Number, required: true },
   age: { type: Number, required: true },
-  results: { type: [Number], required: true },
-  wrongClickCount: { type: Number, default: 0 },
+  results: { 
+    type: [{
+      attempt: { type: Number, required: true },
+      result: { type: String, required: true }
+    }], 
+    required: true 
+  },
 }, { timestamps: true });
 
 const ResultModel = mongoose.model("Result", ResultSchema);
@@ -45,10 +55,10 @@ app.post("/save", async (req, res) => {
     await newResult.save();
     
     console.log("✅ Data Saved Successfully:", newResult);
-    res.json({ message: "Data saved successfully!" });
+    res.json({ message: "Data saved successfully!", userRank: 1 }); // Add userRank for testing
   } catch (error) {
-    console.error("🚨 Error saving data:", error);
-    res.status(500).json({ error: "Error saving data." });
+    console.error("🚨 Error saving data:", error.message);
+    res.status(500).json({ error: "Error saving data.", details: error.message });
   }
 });
 
@@ -56,18 +66,63 @@ app.post("/save", async (req, res) => {
 app.get("/leaderboard", async (req, res) => {
   try {
     const players = await ResultModel.find({});
-    const leaderboard = players.map((player) => {
-      const bestPoints = Math.min(...player.results); // Lower reaction time is better
-      const averagePoints = player.results.reduce((a, b) => a + b, 0) / player.results.length;
-      return {
-        name: player.name,
-        bestPoints,
-        averagePoints,
-      };
-    }).sort((a, b) => a.bestPoints - b.bestPoints) // Sort by best points
-      .slice(0, 10); // Top 10 players
 
-    res.json(leaderboard);
+    const leaderboardMap = new Map();
+
+    players.forEach((player) => {
+      const reactionTimes = player.results.map(result => parseFloat(result.result.replace("✅ ", "").replace(" sec", "")));
+      const bestPoints = Math.min(...reactionTimes);
+      const averagePoints = reactionTimes.reduce((a, b) => a + b, 0) / reactionTimes.length;
+
+      if (!leaderboardMap.has(player.email)) {
+        leaderboardMap.set(player.email, { 
+          name: player.name, 
+          email: player.email, 
+          bestPoints, 
+          averagePoints 
+        });
+      } else {
+        const existing = leaderboardMap.get(player.email);
+        if (bestPoints < existing.bestPoints) {
+          leaderboardMap.set(player.email, { 
+            name: player.name, 
+            email: player.email, 
+            bestPoints, 
+            averagePoints 
+          });
+        }
+      }
+    });
+
+    // Convert to array and sort by bestPoints (lower is better)
+    const sortedLeaderboard = Array.from(leaderboardMap.values())
+      .sort((a, b) => a.bestPoints - b.bestPoints);
+
+    // Top 10 players
+    const top10 = sortedLeaderboard.slice(0, 10);
+
+    // Current user rank (if provided in query)
+    const { email } = req.query;
+    let userRank = null;
+    let isUserInTop10 = false;
+
+    if (email) {
+      const rankIndex = sortedLeaderboard.findIndex(player => player.email === email);
+      if (rankIndex !== -1) {
+        userRank = { rank: rankIndex + 1, ...sortedLeaderboard[rankIndex] };
+        isUserInTop10 = rankIndex < 10; // Check if user is in top 10
+      }
+    }
+
+    // Final leaderboard output
+    let finalLeaderboard = [...top10];
+
+    // If user is outside top 10, include their rank separately
+    if (userRank && !isUserInTop10) {
+      finalLeaderboard.push(userRank);
+    }
+
+    res.json({ leaderboard: finalLeaderboard, userRank });
   } catch (error) {
     console.error("Error fetching leaderboard:", error);
     res.status(500).json({ error: "Error fetching leaderboard." });
@@ -77,5 +132,5 @@ app.get("/leaderboard", async (req, res) => {
 // Start the server
 const PORT = process.env.PORT || 5002;
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`🚀 Server running on port ${PORT}`);
 });
