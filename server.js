@@ -7,14 +7,14 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// MongoDB URI
-const MONGO_URI = process.env.MONGO_URI || "mongodb://localhost:27017/Reaction-Game";
+const MONGO_URI = process.env.MONGO_URI;
+const PORT = process.env.PORT;
+
 
 // Connect to MongoDB
 mongoose.connect(MONGO_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
-
 })
   .then(() => console.log("✅ Connected to MongoDB"))
   .catch((err) => {
@@ -51,7 +51,21 @@ app.post("/save", async (req, res) => {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
-    const newResult = new ResultModel(req.body);
+    // Calculate bestPoints and averagePoints
+    const reactionTimes = req.body.results
+      .filter(result => result.result.startsWith("✅")) // Filter valid results
+      .map(result => parseFloat(result.result.replace("✅ ", "").replace(" sec", "")));
+
+    const bestPoints = reactionTimes.length > 0 ? Math.min(...reactionTimes) : null;
+    const averagePoints = reactionTimes.length > 0 ? reactionTimes.reduce((a, b) => a + b, 0) / reactionTimes.length : null;
+
+    // Add calculated fields to the request body
+    const newResult = new ResultModel({
+      ...req.body,
+      bestPoints,
+      averagePoints,
+    });
+
     await newResult.save();
     
     console.log("✅ Data Saved Successfully:", newResult);
@@ -70,9 +84,12 @@ app.get("/leaderboard", async (req, res) => {
     const leaderboardMap = new Map();
 
     players.forEach((player) => {
-      const reactionTimes = player.results.map(result => parseFloat(result.result.replace("✅ ", "").replace(" sec", "")));
-      const bestPoints = Math.min(...reactionTimes);
-      const averagePoints = reactionTimes.reduce((a, b) => a + b, 0) / reactionTimes.length;
+      const reactionTimes = player.results
+        .filter(result => result.result.startsWith("✅")) // Filter valid results
+        .map(result => parseFloat(result.result.replace("✅ ", "").replace(" sec", "")));
+
+      const bestPoints = reactionTimes.length > 0 ? Math.min(...reactionTimes) : null;
+      const averagePoints = reactionTimes.length > 0 ? reactionTimes.reduce((a, b) => a + b, 0) / reactionTimes.length : null;
 
       if (!leaderboardMap.has(player.email)) {
         leaderboardMap.set(player.email, { 
@@ -128,9 +145,9 @@ app.get("/leaderboard", async (req, res) => {
     res.status(500).json({ error: "Error fetching leaderboard." });
   }
 });
+ 
 
-// Start the server
-const PORT = process.env.PORT || 5002;
+
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
