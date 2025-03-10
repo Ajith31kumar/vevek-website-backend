@@ -1,15 +1,10 @@
-const express = require("express");
+
 const mongoose = require("mongoose");
 const cors = require("cors");
-const { default: ResultModel } = require("./models/ResultSchema");
-const router  = require("./routes/auth");
-// const { session } = require("passport");
-require("dotenv").config(); // Load environment variables
-const passport = require('passport')
-require("./passport.js")
-const session = require("express-session"); 
+require("dotenv").config(); 
 
 
+const express = require('express');
 const app = express();
 app.use(cors());
 app.use(express.json());
@@ -29,23 +24,23 @@ mongoose.connect(MONGO_URI, {
     process.exit(1); // Exit if MongoDB connection fails
   });
 
-// // Define MongoDB Schema
-// const ResultSchema = new mongoose.Schema({
-//   name: { type: String, required: true },
-//   email: { type: String, required: true },
-//   sex: { type: String, required: true },
-//   number: { type: Number, required: true },
-//   age: { type: Number, required: true },
-//   results: { 
-//     type: [{
-//       attempt: { type: Number, required: true },
-//       result: { type: String, required: true }
-//     }], 
-//     required: true 
-//   },
-// }, { timestamps: true });
+// Define MongoDB Schema
+const ResultSchema = new mongoose.Schema({
+  name: { type: String, required: true },
+  email: { type: String, required: true },
+  sex: { type: String, required: true },
+  number: { type: Number, required: true },
+  age: { type: Number, required: true },
+  results: { 
+    type: [{
+      attempt: { type: Number, required: true },
+      result: { type: String, required: true }
+    }], 
+    required: true 
+  },
+}, { timestamps: true });
 
-// const ResultModel = mongoose.model("Result", ResultSchema);
+const ResultModel = mongoose.model("Result", ResultSchema);
 
 // Save game data (POST)
 app.post("/save", async (req, res) => {
@@ -153,17 +148,11 @@ app.get("/leaderboard", async (req, res) => {
   }
 });
 
-app.use("/auth", router);
-
-app.use(session ({ secret: "your_secret", resave: false, saveUninitialized: true }));
-app.use(passport.initialize());
-app.use(passport.session());
-
 
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
 
 //comment
-//
+//CLIENT_URL=https://www.vevekseetharaman.com
 //
