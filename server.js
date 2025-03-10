@@ -1,10 +1,8 @@
-
+const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
-require("dotenv").config(); 
+require("dotenv").config(); // Load environment variables
 
-
-const express = require('express');
 const app = express();
 app.use(cors());
 app.use(express.json());
@@ -41,6 +39,7 @@ const ResultSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 const ResultModel = mongoose.model("Result", ResultSchema);
+
 
 // Save game data (POST)
 app.post("/save", async (req, res) => {
@@ -147,6 +146,7 @@ app.get("/leaderboard", async (req, res) => {
     res.status(500).json({ error: "Error fetching leaderboard." });
   }
 });
+
 
 
 app.listen(PORT, () => {
