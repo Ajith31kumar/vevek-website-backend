@@ -1,15 +1,16 @@
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
-require("dotenv").config(); // Load environment variables
+require("dotenv").config();
+
+const ResultModel = require("./models/Result"); // Import ResultModel
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
 const MONGO_URI = process.env.MONGO_URI;
-const PORT = process.env.PORT;
-
+const PORT = process.env.PORT || 8081;
 
 // Connect to MongoDB
 mongoose.connect(MONGO_URI, {
@@ -19,27 +20,8 @@ mongoose.connect(MONGO_URI, {
   .then(() => console.log("✅ Connected to MongoDB"))
   .catch((err) => {
     console.error("🚨 MongoDB Connection Error:", err.message);
-    process.exit(1); // Exit if MongoDB connection fails
+    process.exit(1);
   });
-
-// Define MongoDB Schema
-const ResultSchema = new mongoose.Schema({
-  name: { type: String, required: true },
-  email: { type: String, required: true },
-  sex: { type: String, required: true },
-  number: { type: Number, required: true },
-  age: { type: Number, required: true },
-  results: { 
-    type: [{
-      attempt: { type: Number, required: true },
-      result: { type: String, required: true }
-    }], 
-    required: true 
-  },
-}, { timestamps: true });
-
-const ResultModel = mongoose.model("Result", ResultSchema);
-
 
 // Save game data (POST)
 app.post("/save", async (req, res) => {
@@ -47,22 +29,23 @@ app.post("/save", async (req, res) => {
     console.log("🔵 Incoming Request:", req.method, req.url);
     console.log("📩 Received Data:", req.body);
 
-    if (!req.body.name || !req.body.email || !req.body.age || !req.body.results) {
+    if (!req.body.email || !req.body.results) {
       console.log("❌ Missing required fields");
-      return res.status(400).json({ error: "Missing required fields" });
+      return res.status(400).json({ error: "Missing required fields (email or results)" });
     }
 
-    // Calculate bestPoints and averagePoints
     const reactionTimes = req.body.results
-      .filter(result => result.result.startsWith("✅")) // Filter valid results
+      .filter(result => result.result.startsWith("✅"))
       .map(result => parseFloat(result.result.replace("✅ ", "").replace(" sec", "")));
 
     const bestPoints = reactionTimes.length > 0 ? Math.min(...reactionTimes) : null;
     const averagePoints = reactionTimes.length > 0 ? reactionTimes.reduce((a, b) => a + b, 0) / reactionTimes.length : null;
 
-    // Add calculated fields to the request body
     const newResult = new ResultModel({
-      ...req.body,
+      name: req.body.name || "",
+      email: req.body.email,
+      age: req.body.age || null,
+      results: req.body.results,
       bestPoints,
       averagePoints,
     });
@@ -70,7 +53,8 @@ app.post("/save", async (req, res) => {
     await newResult.save();
 
     console.log("✅ Data Saved Successfully:", newResult);
-    res.json({ message: "Data saved successfully!", userRank: 1 }); // Add userRank for testing
+    res.json({ message: "Data saved successfully!", userRank: 1 });
+
   } catch (error) {
     console.error("🚨 Error saving data:", error.message);
     res.status(500).json({ error: "Error saving data.", details: error.message });
@@ -86,7 +70,7 @@ app.get("/leaderboard", async (req, res) => {
 
     players.forEach((player) => {
       const reactionTimes = player.results
-        .filter(result => result.result.startsWith("✅")) // Filter valid results
+        .filter(result => result.result.startsWith("✅"))
         .map(result => parseFloat(result.result.replace("✅ ", "").replace(" sec", "")));
 
       const bestPoints = reactionTimes.length > 0 ? Math.min(...reactionTimes) : null;
@@ -112,14 +96,11 @@ app.get("/leaderboard", async (req, res) => {
       }
     });
 
-    // Convert to array and sort by bestPoints (lower is better)
     const sortedLeaderboard = Array.from(leaderboardMap.values())
       .sort((a, b) => a.bestPoints - b.bestPoints);
 
-    // Top 10 players
     const top10 = sortedLeaderboard.slice(0, 10);
 
-    // Current user rank (if provided in query)
     const { email } = req.query;
     let userRank = null;
     let isUserInTop10 = false;
@@ -128,14 +109,12 @@ app.get("/leaderboard", async (req, res) => {
       const rankIndex = sortedLeaderboard.findIndex(player => player.email === email);
       if (rankIndex !== -1) {
         userRank = { rank: rankIndex + 1, ...sortedLeaderboard[rankIndex] };
-        isUserInTop10 = rankIndex < 10; // Check if user is in top 10
+        isUserInTop10 = rankIndex < 10;
       }
     }
 
-    // Final leaderboard output
     let finalLeaderboard = [...top10];
 
-    // If user is outside top 10, include their rank separately
     if (userRank && !isUserInTop10) {
       finalLeaderboard.push(userRank);
     }
@@ -147,12 +126,6 @@ app.get("/leaderboard", async (req, res) => {
   }
 });
 
-
-
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
-
-//comment
-//CLIENT_URL=https://www.vevekseetharaman.com
-//
