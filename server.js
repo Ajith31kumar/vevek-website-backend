@@ -76,30 +76,33 @@ app.get("/leaderboard", async (req, res) => {
       const bestPoints = reactionTimes.length > 0 ? Math.min(...reactionTimes) : null;
       const averagePoints = reactionTimes.length > 0 ? reactionTimes.reduce((a, b) => a + b, 0) / reactionTimes.length : null;
 
-      if (!leaderboardMap.has(player.email)) {
-        leaderboardMap.set(player.email, {
-          name: player.name,
-          email: player.email,
-          bestPoints,
-          averagePoints
-        });
-      } else {
-        const existing = leaderboardMap.get(player.email);
-        if (bestPoints < existing.bestPoints) {
+      if (bestPoints !== null && bestPoints > 0.150 && player.name.trim() !== "") { // ✅ Filter null & empty name
+        if (!leaderboardMap.has(player.email)) {
           leaderboardMap.set(player.email, {
             name: player.name,
             email: player.email,
             bestPoints,
             averagePoints
           });
+        } else {
+          const existing = leaderboardMap.get(player.email);
+          if (bestPoints < existing.bestPoints) {
+            leaderboardMap.set(player.email, {
+              name: player.name,
+              email: player.email,
+              bestPoints,
+              averagePoints
+            });
+          }
         }
       }
     });
 
+    // ✅ Sort in Ascending Order (lower bestPoints is better)
     const sortedLeaderboard = Array.from(leaderboardMap.values())
       .sort((a, b) => a.bestPoints - b.bestPoints);
 
-    const top10 = sortedLeaderboard.slice(0, 10);
+    const top10 = sortedLeaderboard.slice(0, 10); // ✅ Get Top 10 players
 
     const { email } = req.query;
     let userRank = null;
